@@ -3,17 +3,20 @@ from hypothesis import strategies as st
 
 @st.composite
 def NAME(draw):
-    return 'x'
+    return draw(st.sampled_from('xyz'))
 
 
 @st.composite
 def NUMBER(draw):
-    return 1
+    return draw(st.one_of(
+        st.integers(),
+        st.floats()
+    ))
 
 
 @st.composite
-def STRING(daw):
-    return ''
+def STRING(draw):
+    return draw(st.text(st.characters(min_codepoint=1, max_codepoint=128)))
 
 
 # single_input: NEWLINE | simple_stmt | compound_stmt NEWLINE
@@ -72,34 +75,6 @@ def fplist(draw):
 # suite: simple_stmt | NEWLINE INDENT stmt+ DEDENT
 
 
-def _one_of_const(draw, constants, optional=False):
-    """
-    Choose one of a number of constant values.
-
-    :param draw: Let hypothesis draw an integer to choose the constant.
-    :param constants: Iterable of constants to choose from.
-    :param optional: True if the choice is optional
-                     (i.e. an empty string is a valid return value)
-
-    :return: Hypothesis chosen constant from the given constants.
-    """
-
-    if len(constants) == 0:
-        return ''
-    elif len(constants) == 1:
-        if optional:
-            return constants[0] if draw(st.booleans()) else ''
-        return constants[0]
-
-    min_value = 0 if optional else 1
-    max_value = len(constants) - 1
-
-    index_strategy = st.integers(min_value=min_value, max_value=max_value)
-
-    which = draw(index_strategy)
-    return constants[which]
-
-
 def _expr_builder(draw, expr_part_strategy, delimiters):
     """
     Build a expression by drawing multiple parts of the expression and
@@ -114,7 +89,7 @@ def _expr_builder(draw, expr_part_strategy, delimiters):
     result = [draw(expr_part_strategy())]
     count = draw(st.integers(1, 5))
     for i in range(1, count):
-        result.append(_one_of_const(draw, delimiters))
+        result.append(draw(st.sampled_from(delimiters)))
         result.append(draw(expr_part_strategy()))
     return ''.join(result)
 
@@ -163,9 +138,9 @@ def comp_op(draw):
     """
     comp_op: '<'|'>'|'=='|'>='|'<='|'<>'|'!='|'in'|'not' 'in'|'is'|'is' 'not'
     """
-    ops = [ '<', '>', '==', '>=', '<=', '<>', '!=',
-            'in', 'not in', 'is', 'is not']
-    return _one_of_const(draw, ops)
+    ops = ('<', '>', '==', '>=', '<=', '<>', '!=',
+           'in', 'not in', 'is', 'is not')
+    return draw(st.sampled_from(draw, ops))
 
 
 @st.composite
@@ -229,11 +204,11 @@ def factor():
 
     @st.composite
     def _factor(draw, other_factor):
-        unary = _one_of_const(draw, '+-~', optional=True)
+        unary = st.sampled_from('+-~ ')
         strategy = st.one_of(other_factor, _multi_atom_trailer())
         return unary + draw(strategy)
 
-    return st.recursive(atom(), _factor)
+    return st.recursive(st.just(''), _factor)
 
 
 @st.composite
